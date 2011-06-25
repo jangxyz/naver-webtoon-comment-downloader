@@ -1,0 +1,16 @@
+retrieve comments from naver webtoon
+
+    다운로드(만화ID, 만화번호 or 날짜):
+        $ python naver_comment_downloader.py 20853 tue
+        $ python naver_comment_downloader.py 20853 2011.06.21
+        $ python naver_comment_downloader.py 20853 535
+
+    특정 만화 나열(만화ID):
+        $ python naver_comment_downloader.py 20853 
+
+    제목으로 만화 검색:
+        $ python naver_comment_downloader.py '마음의 소리' 
+
+    전체 만화 나열:
+        $ python naver_comment_downloader.py 
+
