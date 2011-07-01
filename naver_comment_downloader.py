@@ -11,6 +11,7 @@ usage = '''
         $ python naver_comment_downloader.py 20853 tue
         $ python naver_comment_downloader.py 20853 2011.06.21
         $ python naver_comment_downloader.py 20853 535
+        $ python naver_comment_downloader.py http://comic.naver.com/webtoon/detail.nhn?titleId=20853&no=535&weekday=fri
 
     특정 만화 나열(만화ID):
         $ python naver_comment_downloader.py 20853 
@@ -59,14 +60,14 @@ def fetch_lkey(title_id, no):
     lkey = lkey[0].strip().split(':')[-1].strip(" '")
     return lkey
 
-def fetching_comments(title_id, no):
+def fetch_comment_for_page(title_id, no, page_no, lkey=None):
     ticket    = 'comic1'
     object_id = "%d_%d" % (title_id, no)
-    lkey      = fetch_lkey(title_id, no)
     page_size = 15
     referer   = DETAIL_URL_TEMPLATE % locals()
     _ts       = int(time.time() * 1000)
-    page_no   = 1
+    if not lkey:
+        lkey  = fetch_lkey(title_id, no)
 
     data = [(k,v) for k,v in locals().items() if k in ['ticket', 'object_id', '_ts', 'lkey', 'page_size', 'page_no']]
     #
@@ -74,7 +75,42 @@ def fetching_comments(title_id, no):
     opener.addheaders.append(('referer', referer))
     resp = opener.open(COMMENT_URL, data=urllib.urlencode(data), timeout=10)
     text = resp.read()
+    text = text.decode('utf8')
+    text = text.replace("\\'", "'")
+    #text = text.replace('\\"', '"')
+    #text = text.replace("\\", r"\\")
+    #text = text.replace(r'\\"', '\\"')
+    # '\\\\"'   --> '\\\\"'
+    # '\\>'     --> '\\\\>'
+    # r'\\지금' --> r'\\\\지금'
+    text = re.sub(r'(\\+)([^"\\])', lambda match: "%s%s%s" % (match.group(1),match.group(1),match.group(2)), text)
 
+    # exception: on (183559, 49, 101)
+    text = text.replace(
+        '"visible_yn":"Y",,"is_mine":"N",',
+        '"visible_yn":"Y","is_mine":"N",'
+    )
+
+    return text
+
+def fetching_comments(title_id, no):
+    #ticket    = 'comic1'
+    #object_id = "%d_%d" % (title_id, no)
+    lkey      = fetch_lkey(title_id, no)
+    #page_size = 15
+    #referer   = DETAIL_URL_TEMPLATE % locals()
+    #_ts       = int(time.time() * 1000)
+    #page_no   = 1
+
+    #data = [(k,v) for k,v in locals().items() if k in ['ticket', 'object_id', '_ts', 'lkey', 'page_size', 'page_no']]
+    ##
+    #opener = urllib2.build_opener()
+    #opener.addheaders.append(('referer', referer))
+    #resp = opener.open(COMMENT_URL, data=urllib.urlencode(data), timeout=10)
+    #text = resp.read()
+    page_no = 1
+    page_size = 15
+    text = fetch_comment_for_page(title_id, no, page_no, lkey)
     j = json.loads(text)
 
     print j['total_count'], 'comments'
@@ -88,11 +124,12 @@ def fetching_comments(title_id, no):
         for error_count in range(3):
             try:
                 page_no = j['page_no'] + 1
-                _ts  = int(time.time() * 1000)
-                #
-                data = [(k,v) for k,v in locals().items() if k in ['ticket', 'object_id', '_ts', 'lkey', 'page_size', 'page_no']]
-                text = opener.open(COMMENT_URL, data=urllib.urlencode(data)).read()
-                text = text.replace("\\'", "'")
+                #_ts  = int(time.time() * 1000)
+                ##
+                #data = [(k,v) for k,v in locals().items() if k in ['ticket', 'object_id', '_ts', 'lkey', 'page_size', 'page_no']]
+                #text = opener.open(COMMENT_URL, data=urllib.urlencode(data)).read()
+                text = fetch_comment_for_page(title_id, no, page_no, lkey)
+                #text = text.replace("\\'", "'")
                 j = json.loads(text)
                 #
                 for comment in j['comment_list']:
@@ -103,16 +140,16 @@ def fetching_comments(title_id, no):
                 error_count += 1
                 random_sleep = random.randrange(10)+1
 
-                print "[ERROR #%d] %s" % (error_count, e)
-                print text.strip()
-                print "sleeping for %d seconds.." % random_sleep
+                p("[ERROR #%d] %s" % (error_count, e))
+                p(text.strip())
+                p("sleeping for %d seconds.." % random_sleep)
                 time.sleep(random_sleep)
 
                 lkey = fetch_lkey(title_id, no)
                 j['page_no'] = page_no - 1
                 continue
         else:
-            print 'too many errors!'
+            p('too many errors!')
             sys.exit(1)
 
         #
@@ -136,67 +173,6 @@ def fetch_comments(title_id, no):
 
     return comments
 
-
-##def fetch_comments(title_id, no, weekday):
-#def fetch_comments(title_id, no):
-#    ticket    = 'comic1'
-#    object_id = "%d_%d" % (title_id, no)
-#    #lkey      = 'qQ85K2dXciaSotohX3m3OXzKREPC6mnVXvGI8imO3XadMfSyoyRxtQ'
-#    lkey      = fetch_lkey(title_id, no)
-#    page_size = 15
-#    referer   = DETAIL_URL_TEMPLATE % locals()
-#    _ts       = int(time.time() * 1000)
-#    page_no   = 1
-#
-#    data = [(k,v) for k,v in locals().items() if k in ['ticket', 'object_id', '_ts', 'lkey', 'page_size', 'page_no']]
-#    #
-#    opener = urllib2.build_opener()
-#    opener.addheaders.append(('referer', referer))
-#    resp = opener.open(COMMENT_URL, data=urllib.urlencode(data))
-#    text = resp.read()
-#
-#    j = json.loads(text)
-#
-#    print j['total_count'], 'comments'
-#    comment_list = j['comment_list']
-#    print " * page %d: [%s] %s" % (page_no, comment_list[0]["registered_ymdt"], unescape(comment_list[0]["contents"]).replace("\r\n", "")[:40])
-#    comments = parse_comment_list(comment_list)
-#    while j['total_count'] > page_no * page_size:
-#        error_count = 0
-#
-#        while error_count < 3:
-#            try:
-#                _ts     = int(time.time() * 1000)
-#                page_no = int(j['page_no']) + 1
-#                #
-#                data = [(k,v) for k,v in locals().items() if k in ['ticket', 'object_id', '_ts', 'lkey', 'page_size', 'page_no']]
-#                text = opener.open(COMMENT_URL, data=urllib.urlencode(data)).read()
-#                text = text.replace("\\'", "'")
-#                j = json.loads(text)
-#                #
-#                comment_list = j['comment_list']
-#                print " * page %d: [%s] %s" % (page_no, comment_list[0]["registered_ymdt"], unescape(comment_list[0]["contents"]).replace("\r\n", "")[:40])
-#                comments += parse_comment_list(comment_list)
-#
-#                break
-#            except Exception, e:
-#                error_count += 1
-#                random_sleep = random.randrange(10)+1
-#
-#                print "[ERROR #%d] %s" % (error_count, e)
-#                print "sleeping for %d seconds.." % random_sleep
-#                sleep(random_sleep)
-#                continue
-#
-#        time.sleep(1)
-#
-#    comments = [unescape(c) for c in comments]
-#
-#    return comments
-#
-#def parse_comment_list(comment_list):
-#    ''' return list of comment body from json input '''
-#    return [c['contents'] for c in comment_list]
 
 def fetch_all_webtoons():
     ''' return title_id, name and day '''
@@ -373,6 +349,13 @@ def compute_date_from_weekday(weekday):
     return day
 
 
+def p(*s):
+    for x in s:
+        if isinstance(x, basestring):
+            x = x.encode(sys.getfilesystemencoding())
+        print(x),
+    print
+
 # -----------
 # application
 # -----------
@@ -427,17 +410,22 @@ def search_webtoon(webtoon_title):
         print "'%s'와 맞는 웹툰을 찾을 수 없습니다." % webtoon_title
     elif len(matches) == 1:
         webtoon = matches[0]
-        print "<%s> [%d] %s" % (webtoon[2].title(), webtoon[0], webtoon[1])
+        p(u"<%s> [%d] %s" % (webtoon[2].title(), webtoon[0], webtoon[1]))
     else:
-        print '웹툰 %d개를 찾았습니다.' % len(matches)
+        p(u'웹툰 %d개를 찾았습니다.' % len(matches))
         for webtoon in matches:
-            print " * <%s> [%6d] %s" % (webtoon[2].title(), webtoon[0], webtoon[1])
+            p(u" * <%s> [%6d] %s" % (webtoon[2].title(), webtoon[0], webtoon[1]))
 
 def print_webtoon_info(title_id):
     title, webtoon_info = fetch_webtoon_info_list(title_id)
-    print "= %s =" % title
+    p(u"= %s =" % title)
     for no,subject,url,date in webtoon_info:
-        print " * [%s] #%d: %s" % (date.strftime("%Y.%m.%d (%a)"), no, subject)
+        p(u' * [%s] #%d: "%s"' % (date.strftime("%Y.%m.%d (%a)"), no, subject))
+
+def download_webtoon_comments_from_url(url):
+    title_id = get_title_id_from_href(url)
+    no = get_no_from_href(url)
+    return download_webtoon_comments(title_id, no)
 
 def download_webtoon_comments(title_id, arg):
     '''
@@ -470,10 +458,10 @@ def download_webtoon_comments(title_id, arg):
 
         if j != prev_j:
             first_comment = j['comment_list'][0]
-            print " * page %d (%.1f %%): [%s] %s" % (
+            p(u" * page %d (%.1f %%): [%s] %s" % (
                 j['page_no'], 
                 (i+1) *100.0 / j['total_count'],
-                first_comment["registered_ymdt"], unescape(first_comment["contents"]).replace("\r\n", "")[:40])
+                first_comment["registered_ymdt"], unescape(first_comment["contents"]).replace("\r\n", "")[:40]))
 
         content = unescape(comment['contents']).replace("\n", "")
         out.write(content.encode(sys.getfilesystemencoding()))
@@ -482,18 +470,22 @@ def download_webtoon_comments(title_id, arg):
         prev_j = j
 
     out.close()
-    print i+1, 'comments successfully saved at', output_filename
+    p(i+1, u'comments successfully saved at', output_filename)
+
 
 def main(args):
     if len(args) == 1:
         print_all_webtoons()
     elif len(args) == 2:
+        # help
         if args[1].lower() in ('--help', '-h'):
             print usage.strip()
             return
 
-        print 'type --help to see help'
-        if args[1].isdigit():
+        sys.stderr.write('type --help to see help\n')
+        if args[1].startswith("http://"):
+            download_webtoon_comments_from_url(args[1])
+        elif args[1].isdigit():
             print_webtoon_info(int(args[1]))
         elif args[1].lower() in WEEKDAYS:
             print_day_webtoon(args[1].lower())
